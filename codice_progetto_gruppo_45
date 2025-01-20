@@ -676,14 +676,8 @@ update_flag_scala:			; routine di update del flag della scala
 check:						; continuo del main_loop con la verifica sulla variabile del TIM_OVF0
 
     cpi temp,0
-    brne end_loop_vicino
+    brne main_loop
     ldi temp,50
-    rjmp continuo_val
-
-end_loop_vicino:			; istruzione di comodo per saltare al main_loop
-    rjmp main_loop
-
-continuo_val:				; verifico se è ora di misurare la V di alimentazione
     cpi flag_val,1
     breq measure_Val
     ldi flag_val,1
