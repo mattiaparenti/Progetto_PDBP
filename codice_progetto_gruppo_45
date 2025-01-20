@@ -1,0 +1,978 @@
+;
+; CODICE_PROGETTO_GRUPPO_45.asm
+;
+; Author : Gruppo 45
+;
+
+	; Inizializzazione delle variabili 
+	; DEFINIZIONE REGISTRI UTULIZZATI E DELLE COSTANTI
+
+	.DEF mp = R16			 ; registro di lavoro generico primario
+	.DEF mp1 = R17			 ; registro di lavoro generico secondario
+	.DEF flag_val = R18		 ; flag che determina quando è il momento di misurare la tensione di alimentazione
+	.DEF temp = R19			 ; variabile utile al TIM_OVF0
+	.DEF state_button = R20  ; stato precedente del pulsante
+	.DEF flag_scala = R21	 ; flag utile alla scelta della scala di temperatura - se = 1 -> °C - se = 0 -> °F
+	.DEF stato_pinB = R22	 ; stato attuale del pulsante
+
+
+	.EQU T_chek_temp = 50	 ; costante che definisce l'intervallo di campionamento
+	.EQU soglia_Val = 215	 ; livello di quantizzazione corrispondente alla soglia 4.2 V
+
+.CSEG
+.ORG 0x0FFF
+
+tabella_fahrenheit:
+.db 0, 0, 0, 0 
+.db 1, 0, 0, 0 
+.db 2, 0, 0, 0 
+.db 3, 0, 0, 0 
+.db 4, 0, 0, 0 
+.db 5, 0, 0, 0
+.db 6, 0, 0, 0 
+.db 7, 0, 0, 0 
+.db 8, 0, 0, 0 
+.db 9, 0, 0, 0 
+.db 10, 0, 0, 0 
+.db 11, 0, 0, 0
+.db 12, 0, 0, 0 
+.db 13, 0, 0, 0 
+.db 14, 0, 0, 0 
+.db 15, 0, 0, 0 
+.db 16, 0, 0, 0 
+.db 17, 0, 0, 0 
+.db 18, 0, 0, 0 
+.db 19, 0, 0, 0 
+.db 20, 0, 0, 0 
+.db 21, 0, 0, 0 
+.db 22, 0, 0, 0 
+.db 23, 0, 0, 0 
+.db 24, 0, 8, 6 
+.db 25, 0, 8, 6 
+.db 26, 0, 8, 6 
+.db 27, 0, 8, 7 
+.db 28, 0, 8, 7 
+.db 29, 0, 8, 7 
+.db 30, 0, 8, 7 
+.db 31, 0, 8, 7 
+.db 32, 0, 8, 8 
+.db 33, 0, 8, 8 
+.db 34, 0, 8, 8 
+.db 35, 0, 8, 8 
+.db 36, 0, 8, 8 
+.db 37, 0, 8, 9 
+.db 38, 0, 8, 9 
+.db 39, 0, 8, 9 
+.db 40, 0, 8, 9 
+.db 41, 0, 8, 9 
+.db 42, 0, 8, 9 
+.db 43, 0, 9, 0 
+.db 44, 0, 9, 0 
+.db 45, 0, 9, 0 
+.db 46, 0, 9, 0 
+.db 47, 0, 9, 0 
+.db 48, 0, 9, 1 
+.db 49, 0, 9, 1 
+.db 50, 0, 9, 1 
+.db 51, 0, 9, 1 
+.db 52, 0, 9, 1 
+.db 53, 0, 9, 2 
+.db 54, 0, 9, 2 
+.db 55, 0, 9, 2 
+.db 56, 0, 9, 2 
+.db 57, 0, 9, 2 
+.db 58, 0, 9, 3 
+.db 59, 0, 9, 3 
+.db 60, 0, 9, 3 
+.db 61, 0, 9, 3 
+.db 62, 0, 9, 3 
+.db 63, 0, 9, 4 
+.db 64, 0, 9, 4 
+.db 65, 0, 9, 4 
+.db 66, 0, 9, 4 
+.db 67, 0, 9, 4 
+.db 68, 0, 9, 5 
+.db 69, 0, 9, 5 
+.db 70, 0, 9, 5 
+.db 71, 0, 9, 5 
+.db 72, 0, 9, 5 
+.db 73, 0, 9, 5 
+.db 74, 0, 9, 6 
+.db 75, 0, 9, 6 
+.db 76, 0, 9, 6 
+.db 77, 0, 9, 6 
+.db 78, 0, 9, 6 
+.db 79, 0, 9, 7 
+.db 80, 0, 9, 7 
+.db 81, 0, 9, 7 
+.db 82, 0, 9, 7 
+.db 83, 0, 9, 7 
+.db 84, 0, 9, 8 
+.db 85, 0, 9, 8 
+.db 86, 0, 9, 8 
+.db 87, 0, 9, 8 
+.db 88, 0, 9, 8 
+.db 89, 0, 9, 9 
+.db 90, 0, 9, 9 
+.db 91, 0, 9, 9 
+.db 92, 0, 9, 9 
+.db 93, 0, 9, 9 
+.db 94, 1, 0, 0 
+.db 95, 1, 0, 0 
+.db 96, 1, 0, 0 
+.db 97, 1, 0, 0 
+.db 98, 1, 0, 0 
+.db 99, 1, 0, 1 
+.db 100, 1, 0, 1 
+.db 101, 1, 0, 1 
+.db 102, 1, 0, 1 
+.db 103, 1, 0, 1 
+.db 104, 1, 0, 1 
+.db 105, 1, 0, 2 
+.db 106, 1, 0, 2 
+.db 107, 1, 0, 2 
+.db 108, 1, 0, 2 
+.db 109, 1, 0, 2 
+.db 110, 1, 0, 3 
+.db 111, 1, 0, 3 
+.db 112, 1, 0, 3 
+.db 113, 1, 0, 3 
+.db 114, 1, 0, 3 
+.db 115, 1, 0, 4 
+.db 116, 1, 0, 4 
+.db 117, 1, 0, 4 
+.db 118, 1, 0, 4 
+.db 119, 1, 0, 4 
+.db 120, 1, 0, 5 
+.db 121, 1, 0, 5 
+.db 122, 1, 0, 5 
+.db 123, 1, 0, 5 
+.db 124, 1, 0, 5 
+.db 125, 1, 0, 6 
+.db 126, 1, 0, 6 
+.db 127, 1, 0, 6 
+.db 128, 1, 0, 6 
+.db 129, 1, 0, 6 
+.db 130, 1, 0, 7 
+.db 131, 1, 0, 7 
+.db 132, 1, 0, 7 
+.db 133, 1, 0, 7 
+.db 134, 1, 0, 7 
+.db 135, 1, 0, 7 
+.db 136, 1, 0, 8 
+.db 137, 1, 0, 8 
+.db 138, 1, 0, 8 
+.db 139, 1, 0, 8 
+.db 140, 1, 0, 8 
+.db 141, 1, 0, 9 
+.db 142, 1, 0, 9 
+.db 143, 1, 0, 9 
+.db 144, 1, 0, 9 
+.db 145, 1, 0, 9 
+.db 146, 1, 1, 0 
+.db 147, 1, 1, 0 
+.db 148, 1, 1, 0
+.db 149, 1, 1, 0 
+.db 150, 1, 1, 0 
+.db 151, 1, 1, 1 
+.db 152, 1, 1, 1 
+.db 153, 1, 1, 1 
+.db 154, 1, 1, 1 
+.db 155, 1, 1, 1 
+.db 156, 1, 1, 2 
+.db 157, 1, 1, 2 
+.db 158, 1, 1, 2 
+.db 159, 1, 1, 2 
+.db 160, 1, 1, 2 
+.db 161, 1, 1, 3 
+.db 162, 1, 1, 3 
+.db 163, 1, 1, 3 
+.db 164, 9, 9, 9 
+.db 165, 9, 9, 9 
+.db 166, 9, 9, 9 
+.db 167, 9, 9, 9 
+.db 168, 9, 9, 9 
+.db 169, 9, 9, 9 
+.db 170, 9, 9, 9 
+.db 171, 9, 9, 9 
+.db 172, 9, 9, 9 
+.db 173, 9, 9, 9 
+.db 174, 9, 9, 9 
+.db 175, 9, 9, 9 
+.db 176, 9, 9, 9 
+.db 177, 9, 9, 9 
+.db 178, 9, 9, 9 
+.db 179, 9, 9, 9 
+.db 180, 9, 9, 9 
+.db 181, 9, 9, 9 
+.db 182, 9, 9, 9
+.db 183, 9, 9, 9 
+.db 184, 9, 9, 9 
+.db 185, 9, 9, 9 
+.db 186, 9, 9, 9 
+.db 187, 9, 9, 9 
+.db 188, 9, 9, 9 
+.db 189, 9, 9, 9 
+.db 190, 9, 9, 9 
+.db 191, 9, 9, 9 
+.db 192, 9, 9, 9 
+.db 193, 9, 9, 9 
+.db 194, 9, 9, 9 
+.db 195, 9, 9, 9 
+.db 196, 9, 9, 9 
+.db 197, 9, 9, 9 
+.db 198, 9, 9, 9 
+.db 199, 9, 9, 9 
+.db 200, 9, 9, 9 
+.db 201, 9, 9, 9 
+.db 202, 9, 9, 9 
+.db 203, 9, 9, 9 
+.db 204, 9, 9, 9 
+.db 205, 9, 9, 9 
+.db 206, 9, 9, 9 
+.db 207, 9, 9, 9 
+.db 208, 9, 9, 9
+.db 209, 9, 9, 9 
+.db 210, 9, 9, 9 
+.db 211, 9, 9, 9 
+.db 212, 9, 9, 9 
+.db 213, 9, 9, 9 
+.db 214, 9, 9, 9 
+.db 215, 9, 9, 9 
+.db 216, 9, 9, 9 
+.db 217, 9, 9, 9 
+.db 218, 9, 9, 9 
+.db 219, 9, 9, 9 
+.db 220, 9, 9, 9 
+.db 221, 9, 9, 9 
+.db 222, 9, 9, 9 
+.db 223, 9, 9, 9 
+.db 224, 9, 9, 9 
+.db 225, 9, 9, 9 
+.db 226, 9, 9, 9 
+.db 227, 9, 9, 9 
+.db 228, 9, 9, 9 
+.db 229, 9, 9, 9 
+.db 230, 9, 9, 9 
+.db 231, 9, 9, 9 
+.db 232, 9, 9, 9 
+.db 233, 9, 9, 9 
+.db 234, 9, 9, 9 
+.db 235, 9, 9, 9 
+.db 236, 9, 9, 9 
+.db 237, 9, 9, 9 
+.db 238, 9, 9, 9 
+.db 239, 9, 9, 9 
+.db 240, 9, 9, 9 
+.db 241, 9, 9, 9 
+.db 242, 9, 9, 9 
+.db 243, 9, 9, 9 
+.db 244, 9, 9, 9 
+.db 245, 9, 9, 9 
+.db 246, 9, 9, 9 
+.db 247, 9, 9, 9 
+.db 248, 9, 9, 9 
+.db 249, 9, 9, 9 
+.db 250, 9, 9, 9 
+.db 251, 9, 9, 9 
+.db 252, 9, 9, 9 
+.db 253, 9, 9, 9 
+.db 254, 9, 9, 9 
+.db 255, 9, 9, 9 
+
+.CSEG
+.ORG 0x1FFF
+
+tabella_celsius:
+.db 0, 0, 0, 0 
+.db 1, 0, 0, 0 
+.db 2, 0, 0, 0 
+.db 3, 0, 0, 0 
+.db 4, 0, 0, 0 
+.db 5, 0, 0, 0 
+.db 6, 0, 0, 0 
+.db 7, 0, 0, 0 
+.db 8, 0, 0, 0 
+.db 9, 0, 0, 0 
+.db 10, 0, 0, 0 
+.db 11, 0, 0, 0 
+.db 12, 0, 0, 0 
+.db 13, 0, 0, 0 
+.db 14, 0, 0, 0 
+.db 15, 0, 0, 0 
+.db 16, 0, 0, 0 
+.db 17, 0, 0, 0 
+.db 18, 0, 0, 0 
+.db 19, 0, 0, 0 
+.db 20, 0, 0, 0 
+.db 21, 0, 0, 0 
+.db 22, 0, 0, 0 
+.db 23, 0, 0, 0 
+.db 24, 3, 0, 0 
+.db 25, 3, 0, 1 
+.db 26, 3, 0, 2 
+.db 27, 3, 0, 3 
+.db 28, 3, 0, 4 
+.db 29, 3, 0, 5 
+.db 30, 3, 0, 6 
+.db 31, 3, 0, 8 
+.db 32, 3, 0, 9 
+.db 33, 3, 1, 0 
+.db 34, 3, 1, 1 
+.db 35, 3, 1, 2 
+.db 36, 3, 1, 3 
+.db 37, 3, 1, 4 
+.db 38, 3, 1, 5 
+.db 39, 3, 1, 6 
+.db 40, 3, 1, 7 
+.db 41, 3, 1, 8 
+.db 42, 3, 1, 9 
+.db 43, 3, 2, 0 
+.db 44, 3, 2, 2 
+.db 45, 3, 2, 3 
+.db 46, 3, 2, 4 
+.db 47, 3, 2, 5 
+.db 48, 3, 2, 6 
+.db 49, 3, 2, 7 
+.db 50, 3, 2, 8 
+.db 51, 3, 2, 9 
+.db 52, 3, 3, 0 
+.db 53, 3, 3, 1 
+.db 54, 3, 3, 2 
+.db 55, 3, 3, 3 
+.db 56, 3, 3, 4 
+.db 57, 3, 3, 5
+.db 58, 3, 3, 7 
+.db 59, 3, 3, 8 
+.db 60, 3, 3, 9 
+.db 61, 3, 4, 0 
+.db 62, 3, 4, 1 
+.db 63, 3, 4, 2 
+.db 64, 3, 4, 3 
+.db 65, 3, 4, 4 
+.db 66, 3, 4, 5 
+.db 67, 3, 4, 6 
+.db 68, 3, 4, 7 
+.db 69, 3, 4, 8 
+.db 70, 3, 4, 9 
+.db 71, 3, 5, 1
+.db 72, 3, 5, 2 
+.db 73, 3, 5, 3 
+.db 74, 3, 5, 4 
+.db 75, 3, 5, 5 
+.db 76, 3, 5, 6 
+.db 77, 3, 5, 7 
+.db 78, 3, 5, 8 
+.db 79, 3, 5, 9 
+.db 80, 3, 6, 0 
+.db 81, 3, 6, 1 
+.db 82, 3, 6, 2 
+.db 83, 3, 6, 3 
+.db 84, 3, 6, 5 
+.db 85, 3, 6, 6 
+.db 86, 3, 6, 7 
+.db 87, 3, 6, 8 
+.db 88, 3, 6, 9 
+.db 89, 3, 7, 0 
+.db 90, 3, 7, 1 
+.db 91, 3, 7, 2 
+.db 92, 3, 7, 3 
+.db 93, 3, 7, 4 
+.db 94, 3, 7, 5 
+.db 95, 3, 7, 6 
+.db 96, 3, 7, 7 
+.db 97, 3, 7, 8 
+.db 98, 3, 8, 0 
+.db 99, 3, 8, 1 
+.db 100, 3, 8, 2 
+.db 101, 3, 8, 3 
+.db 102, 3, 8, 4 
+.db 103, 3, 8, 5 
+.db 104, 3, 8, 6 
+.db 105, 3, 8, 7 
+.db 106, 3, 8, 8
+.db 107, 3, 8, 9 
+.db 108, 3, 9, 0 
+.db 109, 3, 9, 1 
+.db 110, 3, 9, 2 
+.db 111, 3, 9, 4 
+.db 112, 3, 9, 5 
+.db 113, 3, 9, 6 
+.db 114, 3, 9, 7 
+.db 115, 3, 9, 8
+.db 116, 3, 9, 9 
+.db 117, 4, 0, 0 
+.db 118, 4, 0, 1 
+.db 119, 4, 0, 2 
+.db 120, 4, 0, 3 
+.db 121, 4, 0, 4 
+.db 122, 4, 0, 5 
+.db 123, 4, 0, 6 
+.db 124, 4, 0, 8 
+.db 125, 4, 0, 9 
+.db 126, 4, 1, 0 
+.db 127, 4, 1, 1 
+.db 128, 4, 1, 2 
+.db 129, 4, 1, 3 
+.db 130, 4, 1, 4
+.db 131, 4, 1, 5 
+.db 132, 4, 1, 6 
+.db 133, 4, 1, 7
+.db 134, 4, 1, 8
+.db 135, 4, 1, 9 
+.db 136, 4, 2, 0 
+.db 137, 4, 2, 2 
+.db 138, 4, 2, 3 
+.db 139, 4, 2, 4 
+.db 140, 4, 2, 5 
+.db 141, 4, 2, 6 
+.db 142, 4, 2, 7 
+.db 143, 4, 2, 8 
+.db 144, 4, 2, 9 
+.db 145, 4, 3, 0 
+.db 146, 4, 3, 1 
+.db 147, 4, 3, 2 
+.db 148, 4, 3, 3 
+.db 149, 4, 3, 4 
+.db 150, 4, 3, 5 
+.db 151, 4, 3, 7 
+.db 152, 4, 3, 8 
+.db 153, 4, 3, 9 
+.db 154, 4, 4, 0 
+.db 155, 4, 4, 1 
+.db 156, 4, 4, 2 
+.db 157, 4, 4, 3 
+.db 158, 4, 4, 4 
+.db 159, 4, 4, 5 
+.db 160, 4, 4, 6 
+.db 161, 4, 4, 7 
+.db 162, 4, 4, 8 
+.db 163, 4, 4, 9 
+.db 164, 9, 9, 9 
+.db 165, 9, 9, 9 
+.db 166, 9, 9, 9 
+.db 167, 9, 9, 9 
+.db 168, 9, 9, 9 
+.db 169, 9, 9, 9 
+.db 170, 9, 9, 9 
+.db 171, 9, 9, 9 
+.db 172, 9, 9, 9 
+.db 173, 9, 9, 9 
+.db 174, 9, 9, 9 
+.db 175, 9, 9, 9 
+.db 176, 9, 9, 9 
+.db 177, 9, 9, 9 
+.db 178, 9, 9, 9 
+.db 179, 9, 9, 9 
+.db 180, 9, 9, 9 
+.db 181, 9, 9, 9 
+.db 182, 9, 9, 9 
+.db 183, 9, 9, 9 
+.db 184, 9, 9, 9 
+.db 185, 9, 9, 9 
+.db 186, 9, 9, 9
+.db 187, 9, 9, 9 
+.db 188, 9, 9, 9 
+.db 189, 9, 9, 9 
+.db 190, 9, 9, 9 
+.db 191, 9, 9, 9 
+.db 192, 9, 9, 9 
+.db 193, 9, 9, 9 
+.db 194, 9, 9, 9 
+.db 195, 9, 9, 9 
+.db 196, 9, 9, 9 
+.db 197, 9, 9, 9 
+.db 198, 9, 9, 9 
+.db 199, 9, 9, 9 
+.db 200, 9, 9, 9 
+.db 201, 9, 9, 9 
+.db 202, 9, 9, 9 
+.db 203, 9, 9, 9 
+.db 204, 9, 9, 9 
+.db 205, 9, 9, 9 
+.db 206, 9, 9, 9 
+.db 207, 9, 9, 9 
+.db 208, 9, 9, 9 
+.db 209, 9, 9, 9 
+.db 210, 9, 9, 9 
+.db 211, 9, 9, 9 
+.db 212, 9, 9, 9 
+.db 213, 9, 9, 9
+.db 214, 9, 9, 9 
+.db 215, 9, 9, 9 
+.db 216, 9, 9, 9 
+.db 217, 9, 9, 9 
+.db 218, 9, 9, 9 
+.db 219, 9, 9, 9 
+.db 220, 9, 9, 9 
+.db 221, 9, 9, 9 
+.db 222, 9, 9, 9 
+.db 223, 9, 9, 9 
+.db 224, 9, 9, 9 
+.db 225, 9, 9, 9 
+.db 226, 9, 9, 9 
+.db 227, 9, 9, 9 
+.db 228, 9, 9, 9 
+.db 229, 9, 9, 9 
+.db 230, 9, 9, 9 
+.db 231, 9, 9, 9 
+.db 232, 9, 9, 9 
+.db 233, 9, 9, 9 
+.db 234, 9, 9, 9 
+.db 235, 9, 9, 9 
+.db 236, 9, 9, 9 
+.db 237, 9, 9, 9 
+.db 238, 9, 9, 9 
+.db 239, 9, 9, 9 
+.db 240, 9, 9, 9 
+.db 241, 9, 9, 9 
+.db 242, 9, 9, 9 
+.db 243, 9, 9, 9 
+.db 244, 9, 9, 9 
+.db 245, 9, 9, 9 
+.db 246, 9, 9, 9 
+.db 247, 9, 9, 9 
+.db 248, 9, 9, 9 
+.db 249, 9, 9, 9 
+.db 250, 9, 9, 9 
+.db 251, 9, 9, 9 
+.db 252, 9, 9, 9 
+.db 253, 9, 9, 9 
+.db 254, 9, 9, 9 
+.db 255, 9, 9, 9 
+
+.CSEG
+.ORG 0x0000
+
+; Inizio dei vettori di interrupt
+jmp RESET
+jmp EXT_INT0
+jmp EXT_INT1
+jmp PCINTR0
+jmp PCINTR1
+jmp PCINTR2
+jmp WDT
+jmp TIM2_COMPA
+jmp TIM2_COMPB
+jmp TIM2_OVF
+jmp TIM1_CAPT
+jmp TIM1_COMPA
+jmp TIM1_COMPB
+jmp TIM1_OVF
+jmp TIM0_COMPA
+jmp TIM0_COMPB
+jmp TIM0_OVF
+jmp SPI_STC
+jmp USART_RXC
+jmp USART_UDRE
+jmp USART_TXC
+jmp ADC_conv
+jmp EE_RDY
+jmp ANA_COMP
+jmp TWI
+jmp SPM_RDY
+
+; Fine dei vettori di interrupt
+
+;---------------------------------------------------------------------------
+RESET:
+	; inizializzazione dello stack pointer
+    ldi mp, HIGH(RAMEND)	
+    out SPH, mp
+    ldi mp, LOW(RAMEND)
+    out SPL, mp
+
+    ; inizializzazione porte display PD0-PD3 (ABCD), PD4-5-6 (LE)
+    ldi mp, 0b0111_1111
+    out DDRD, mp
+    ldi mp, 0b0111_0000
+    out PORTD, mp
+
+    ; PB3 ingresso (pulsante), PB4 (punto decimale) e PB5 (led arduino) uscita
+    in mp, DDRB
+    andi mp, 0b1111_0111
+    out DDRB, mp
+    in mp, DDRB
+    ori mp, 0b0011_0000
+    out DDRB, mp
+
+    ; Pull-up PB0-PB1-PB2-PB3
+    ldi mp, 0b1100_1111
+    out PORTB, mp
+
+    ; Inizializza stato pulsante e scala
+    ldi state_button, 0b0000_0000
+    ldi flag_scala, 0b0000_0001
+
+    ; Impostazioni clock e Timer0
+    ldi mp, 0b1000_0000
+    sts CLKPR, mp
+    ldi mp, 0b0000_0101
+    sts CLKPR, mp
+
+    ldi mp, 0b0000_0101
+    out TCCR0B, mp
+    ldi mp, 236
+    out TCNT0, mp
+    ldi mp, 0b0000_0001
+    sts TIMSK0, mp
+
+    ; inizializzazione temp e flag_val
+    ldi temp, T_chek_temp
+    ldi flag_val, 0b0000_0000
+
+
+    ; Abilitazione ADC al campionamento + prescaler=4
+    ldi mp, 0b1000_0010
+    sts ADCSRA, mp
+
+    ; Programmazione ADC: 1,1 V, left adjusted, PC0
+    ldi mp,0b0110_0001
+    sts ADMUX,mp
+    nop
+    nop
+    nop
+    nop
+   
+
+    sei
+
+;---------------------------------------------------------------------------
+;							Ciclo principale
+;---------------------------------------------------------------------------
+main_loop:
+
+	; lettura stato del pulsante
+
+    in stato_pinB, PINB
+    mov mp, stato_pinB
+    andi mp, 0b00001000
+
+    cp mp, state_button		; confronto con lo stato precedente del pulsante
+    breq check				; se uguali non aggiorna nessun flag e prosegue con il main_loop
+
+    ; routine di debounce in caso di variazione dello stato del pulsante
+    ldi mp1,20
+debounce_delay:
+    dec mp1
+    tst mp1
+    brne debounce_delay
+
+    in mp1, PINB			; verifica dell'effettiva variazione di stato del pulsante
+    andi mp1, 0b00001000
+    cp mp1, mp
+    brne check				; se non verificato ignora le successive istruzioni di update e prosegue con il main_loop
+
+    tst mp					; se sul fronte di discesa dell'impulso fornito dal pulsante, aggiorna il flag della scala
+    breq update_flag_scala
+	mov state_button, mp
+    rjmp check
+
+update_flag_scala:			; routine di update del flag della scala 
+    mov state_button, mp1
+    ldi mp1, 0b0000_0001
+    eor flag_scala, mp1
+
+check:						; continuo del main_loop con la verifica sulla variabile del TIM_OVF0
+
+    cpi temp,0
+    brne end_loop_vicino
+    ldi temp,50
+    rjmp continuo_val
+
+end_loop_vicino:			; istruzione di comodo per saltare al main_loop
+    rjmp main_loop
+
+continuo_val:				; verifico se è ora di misurare la V di alimentazione
+    cpi flag_val,1
+    breq measure_Val
+    ldi flag_val,1
+    rjmp intermedio
+
+;---------------------------------------------------------------------------
+;							Misura V di alimentazione
+;---------------------------------------------------------------------------
+measure_Val:			; routine di misura dell'alimentazione
+    ldi flag_val,0
+
+    ; Impostaioni ADC: Vcc, right adjusted, canale A1
+    ldi mp, 0b1110_0001 
+    sts ADMUX, mp
+	
+	call dummy_read		; routine di lettura "a vuoto" da scartare per stabilizzare il nuovo riferimento dell'ADC
+
+
+    ; Inizio conversione 
+    lds mp, ADCSRA
+    ldi mp1, 0b01000000
+    or mp, mp1
+    sts ADCSRA, mp
+
+wait_adc:				; attesa della fine della conversione
+    lds mp, ADCSRA
+    ldi mp1, 0b01000000
+    and mp, mp1
+    brne wait_adc
+
+    ; Lettura ADCH e confronto soglia
+    lds mp, ADCH
+    cpi mp, soglia_Val
+    brsh adc_greater_than_ref
+	; se minore - LED ON 
+    sbi PORTB, PB5
+	rjmp intermedio
+
+adc_greater_than_ref:		; maggiore della soglia - LED OFF
+    cbi PORTB, PB5
+
+
+intermedio:
+
+scelta_scala:				; routine di scelta della scala in base al flag
+    tst flag_scala
+    breq usa_fahrenheit
+    rjmp usa_celsius
+
+usa_fahrenheit:
+	cbi PORTB, PB4			; spegne il punto decimale
+    mov state_button, mp
+    ldi ZH, high(2 * tabella_fahrenheit)
+    ldi ZL, low(2 * tabella_fahrenheit)
+    rjmp usa_tabella
+
+usa_celsius:
+	sbi PORTB, PB4			; accende il punto decimale
+    mov state_button, mp
+    ldi ZH, high(2 * tabella_celsius)
+    ldi ZL, low(2 * tabella_celsius)
+
+usa_tabella:
+    push ZH
+    push ZL
+
+; impostazione ADC con riferimento 1.1 V, right adjusted, A0
+    ldi mp, 0b1100_0000  
+    sts ADMUX, mp
+    rcall dummy_read     
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+
+    call measure			; richiamo la misura di temperatura
+
+end_loop:
+    rjmp main_loop
+
+;---------------------------------------------------------------------------
+;						MISURA DI TEMPERATURA
+;---------------------------------------------------------------------------
+measure:
+    pop mp
+    pop mp1
+    pop ZL
+    pop ZH
+    push mp1
+    push mp
+	nop
+
+    lds mp, ADCSRA
+    ldi mp1,0b0100_0000
+    or mp,mp1
+    sts ADCSRA,mp
+
+controllo_conversione2:
+    lds mp,ADCSRA
+    ldi mp1,0b01000000
+    and mp,mp1
+    brne controllo_conversione2
+
+	lds R26, ADCL
+	lds R27, ADCH
+
+
+	; Check sull'indice
+
+	; se l'ADC rileva un livello di quantizzazione minore di 255 -> saturazione basso
+
+	ldi mp, low(255)
+	ldi mp1, high(255)
+	
+	cp r26, mp
+	cpc r27, mp1
+	brcs saturazione_basso
+
+
+	; controllo se la saturazione è in alto
+	
+	ldi mp, low(435)
+	ldi mp1, high(435)
+	
+	cp r26 ,mp
+	cpc r27, mp1
+
+	brcc saturazione_alto
+	
+	jmp misura_nel_range
+ 	
+
+saturazione_alto:			; Per visualizzare sul display 999
+	; accendo i LE e carico 1001 su ognuno (centinata, decine, unità)
+	ldi mp, 0b0001_1001
+	out PORTD, mp
+	nop
+	nop
+	nop
+	ldi mp, 0b0010_1001
+	out PORTD, mp
+	nop
+	nop
+	nop
+	ldi mp, 0b0100_1001
+	out PORTD, mp
+
+	jmp fine_sub
+
+saturazione_basso:			; Per visualizzare sul display 000
+	; accendo i LE e carico 0000 su ognuno
+	ldi mp, 0b0001_0000
+	out PORTD, mp
+	nop
+	nop
+	nop
+	ldi mp, 0b0010_0000
+	out PORTD, mp
+	nop
+	nop
+	nop
+	ldi mp, 0b0100_0000
+	out PORTD, mp
+
+	jmp fine_sub
+
+	;
+misura_nel_range:				; routine di misura se non c'è saturazione
+    ; VADC - 255 - sottrazione per poter scalare la tabella e utilizzare un solo registro per l'indice
+
+	ldi mp, low(255)
+	ldi mp1, high(255)
+	sub R26, mp
+	sub R27, mp1
+
+    ldi mp1,4
+    mul R26,mp1
+    add ZL,R0
+    adc ZH,R1
+   
+	nop
+
+	; Dopo aver trovato l'indice, mostro il risultato sui display
+
+    lpm mp,Z+
+    lpm mp,Z+
+    ori mp,0b0111_0000
+    out PORTD,mp
+    andi mp,0b0110_1111
+    out PORTD,mp
+    nop
+    nop
+    nop
+    nop
+    nop
+    ori mp,0b0111_0000
+    out PORTD,mp
+
+    lpm mp,Z+
+    ori mp,0b0111_0000
+    out PORTD,mp
+    andi mp,0b0101_1111
+    out PORTD,mp
+    nop
+    nop
+    nop
+    nop
+    nop
+    ori mp,0b0111_0000
+    out PORTD,mp
+
+    lpm mp,Z+
+    ori mp,0b0111_0000
+    out PORTD,mp
+    andi mp,0b0011_1111
+    out PORTD,mp
+    nop
+    nop
+    nop
+    nop
+    nop
+    ori mp,0b0111_0000
+    out PORTD,mp
+
+fine_sub:
+    ret
+
+
+
+;---------------------------------------------------------------------------
+; DUMMY_READ 
+;---------------------------------------------------------------------------
+dummy_read:
+    ; Avvia una conversione fittizia e scarta il risultato
+    lds mp, ADCSRA
+    ori mp, 0b01000000   
+    sts ADCSRA, mp
+	
+    ; scarta i registri
+    lds mp, ADCL
+    lds mp, ADCH
+    ret
+
+
+;---------------------------------------------------------------------------
+; INTERRUPT HANDLERS
+;---------------------------------------------------------------------------
+TIM0_OVF:
+    push mp
+    in mp, SREG
+    push mp
+
+    ldi mp,236
+    out TCNT0, mp
+    dec temp
+
+    pop mp
+    out SREG, mp
+    pop mp
+    reti
+
+; Altri interrupt non usati
+EXT_INT0:   reti
+EXT_INT1:   reti
+PCINTR0:    reti
+PCINTR1:    reti
+PCINTR2:    reti
+WDT:        reti
+TIM2_COMPA: reti
+TIM2_COMPB: reti
+TIM2_OVF:   reti
+TIM1_CAPT:  reti
+TIM1_COMPA: reti
+TIM1_COMPB: reti
+TIM1_OVF:   reti
+TIM0_COMPA: reti
+TIM0_COMPB: reti
+SPI_STC:    reti
+USART_RXC:  reti
+USART_UDRE: reti
+USART_TXC:  reti
+ADC_conv:   reti
+EE_RDY:     reti
+ANA_COMP:   reti
+TWI:        reti
+SPM_RDY:    reti
